@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.14
 ENV UV_INDEX_URL=https://pypi.org/simple
 ENV PYTHONUNBUFFERED=1
 
