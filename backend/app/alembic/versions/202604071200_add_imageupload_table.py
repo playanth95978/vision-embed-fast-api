@@ -31,6 +31,9 @@ def upgrade():
     )
     # Manually add the vector column with correct type
     op.execute('ALTER TABLE imageupload ALTER COLUMN embedding TYPE vector(3) USING embedding::vector(3)')
+    op.execute(
+        "CREATE INDEX image_embedding_idx ON imageupload USING ivfflat (embedding vector_cosine_ops)"
+    )
 
 def downgrade():
     op.drop_table('imageupload')
