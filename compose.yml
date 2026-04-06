@@ -18,6 +18,8 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
       - POSTGRES_USER=${POSTGRES_USER?Variable not set}
       - POSTGRES_DB=${POSTGRES_DB?Variable not set}
+    ports:
+      - '127.0.0.1:5433:5432'
 
   adminer:
     image: adminer
@@ -77,6 +79,9 @@ services:
       - SENTRY_DSN=${SENTRY_DSN}
 
   backend:
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     image: '${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}'
     restart: always
     networks:

@@ -1,4 +1,8 @@
 FROM python:3.10
+ENV UV_INDEX_URL=https://pypi.org/simple
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y ca-certificates curl dnsutils && update-ca-certificates
 
 ENV PYTHONUNBUFFERED=1
 

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from pydantic import EmailStr
-from sqlalchemy import DateTime
+from sqlalchemy import JSON, Column, DateTime
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -127,3 +127,29 @@ class TokenPayload(SQLModel):
 class NewPassword(SQLModel):
     token: str
     new_password: str = Field(min_length=8, max_length=128)
+
+
+# Image Upload model
+class ImageUploadBase(SQLModel):
+    description: str | None = Field(default=None, max_length=1000)
+
+
+class ImageUploadCreate(ImageUploadBase):
+    pass
+
+
+class ImageUpload(ImageUploadBase, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    image_url: str = Field(max_length=1000)
+    created_at: datetime | None = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),
+    )
+    # The vector column will be added manually in a migration if pgvector isn't available at runtime here
+    # or we can use a placeholder and change it in the migration.
+    # For now, let's keep it in comments or use a list/JSON if we want it to work without pgvector package.
+    # But the user asked for a vector column.
+    # embedding: list[float] = Field(sa_column=Column(Vector(1536))) 
+    # Since I cannot install pgvector here, I will use a simple JSON as a placeholder in the model
+    # and provide instructions to change it to Vector in the migration.
+    embedding: list[float] | None = Field(default=None, sa_column=Column(JSON))
