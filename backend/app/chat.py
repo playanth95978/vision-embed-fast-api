@@ -2,16 +2,7 @@ from typing import Iterator, Union
 
 from ollama import chat, ChatResponse
 
-AI_MODEL = 'gemma3'
-
-stream = chat(
-    model='gemma3',
-    messages=[{'role': 'user', 'content': 'Why is the sky blue?'}],
-    stream=True,
-)
-
-for chunk in stream:
-  print(chunk['message']['content'], end='', flush=True)
+AI_MODEL = 'qwen2.5:7b'
 
 
 def get_chat_response(messages: list[dict[str, str]]) -> Union[ChatResponse, Iterator[ChatResponse]]:
@@ -23,4 +14,4 @@ def get_chat_response(messages: list[dict[str, str]]) -> Union[ChatResponse, Ite
     Returns:
         Union[ChatResponse, Iterator[ChatResponse]]: Chat response or iterator of chat responses.
     """
-    return chat(model='gemma3', messages=messages, stream=True)
+    return chat(model=AI_MODEL, messages=messages, stream=True)

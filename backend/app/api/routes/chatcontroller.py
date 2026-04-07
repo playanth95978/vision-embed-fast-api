@@ -1,26 +1,12 @@
 from collections.abc import AsyncIterable
-import anyio
-from typing import Any
 
+import anyio
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
 
 from app.chat import get_chat_response
 
-router = APIRouter(prefix="/items", tags=["chat"])
-
-
-class Item(BaseModel):
-    name: str
-    description: str | None
-
-
-items = [
-    Item(name="Plumbus", description="A multi-purpose household device."),
-    Item(name="Portal Gun", description="A portal opening device."),
-    Item(name="Meeseeks Box", description="A box that summons a Meeseeks."),
-]
+router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/stream")
