@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pydantic import EmailStr
 from sqlalchemy import JSON, Column, DateTime
 from sqlmodel import Field, Relationship, SQLModel
-
+from pgvector.sqlalchemy import Vector
 
 def get_datetime_utc() -> datetime:
     return datetime.now(timezone.utc)
@@ -135,15 +135,16 @@ class ImageUploadBase(SQLModel):
 
 
 class ImageUploadCreate(ImageUploadBase):
+    print(Vector(1536))
     pass
 
 
 class ImageUpload(ImageUploadBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     image_url: str = Field(max_length=1000)
-    created_at: datetime | None = Field(
+    created_at: datetime = Field(
         default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
     )
     # The vector column will be added manually in a migration if pgvector isn't available at runtime here
     # or we can use a placeholder and change it in the migration.
@@ -152,5 +153,7 @@ class ImageUpload(ImageUploadBase, table=True):
     # embedding: list[float] = Field(sa_column=Column(Vector(1536))) 
     # Since I cannot install pgvector here, I will use a simple JSON as a placeholder in the model
     # and provide instructions to change it to Vector in the migration.
-    embedding: list[float] | None = Field(default=None, sa_column=Column(JSON))
- 
+    embedding: list[float] | None = Field(
+        default=None,
+        sa_column=Column(Vector(512))  # si CLIP
+    )

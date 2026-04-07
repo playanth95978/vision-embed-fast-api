@@ -39,10 +39,10 @@ def on_startup():
     print("🚀 Initializing database...")
 
     # Create tables
-    sqlmodel.SQLModel.metadata.create_all(engine)
+    # sqlmodel.SQLModel.metadata.create_all(engine)
     #
     # # Seed data (admin user etc.)
-    with Session(engine) as session:
-        init_db(session)
-
+    # with Session(engine) as session:
+    #     init_db(session)
+    #
     print("✅ Database ready")
