@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
+    SQLALCHEMY_ECHO: bool = False
 
     @computed_field  # type: ignore[prop-decorator]
     @property

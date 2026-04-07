@@ -1,10 +1,32 @@
+import time
+import logging
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 from sqlmodel import Session, create_engine, select, SQLModel
 
 from app import crud
 from app.core.config import settings
 from app.models import User, UserCreate
 
-engine = create_engine(str(settings.SQLALCHEMY_DATABASE_URI))
+logging.basicConfig()
+logger = logging.getLogger("app.db")
+logger.setLevel(logging.INFO)
+
+engine = create_engine(
+    str(settings.SQLALCHEMY_DATABASE_URI),
+    echo=settings.SQLALCHEMY_ECHO
+)
+
+@event.listens_for(Engine, "before_cursor_execute")
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    context._query_start_time = time.time()
+
+@event.listens_for(Engine, "after_cursor_execute")
+def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    total = time.time() - context._query_start_time
+    logger.info("Query: %s", statement)
+    logger.info("Parameters: %s", parameters)
+    logger.info("Total execution time: %.4f seconds", total)
 
 
 # make sure all SQLModel models are imported (app.models) before initializing DB
