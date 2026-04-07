@@ -11,6 +11,7 @@ from app.models import User, UserCreate
 logging.basicConfig()
 logger = logging.getLogger("app.db")
 logger.setLevel(logging.INFO)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.DEBUG)
 
 engine = create_engine(
     str(settings.SQLALCHEMY_DATABASE_URI),
@@ -41,7 +42,7 @@ def init_db(session: Session) -> None:
     # from sqlmodel import SQLModel
 
     # This works because the models are already imported and registered from app.models
-    SQLModel.metadata.create_all(engine)
+    # SQLModel.metadata.create_all(engine)
 
     user = session.exec(
         select(User).where(User.email == settings.FIRST_SUPERUSER)
