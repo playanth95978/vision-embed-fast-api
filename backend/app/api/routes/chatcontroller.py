@@ -10,7 +10,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/stream")
-async def sse_items(msg: list[dict[str, str]]) -> StreamingResponse:
+async def sse_items(q: str | None = None) -> StreamingResponse:
     """
     Stream chat responses as SSE using standard FastAPI StreamingResponse.
     """
@@ -18,7 +18,8 @@ async def sse_items(msg: list[dict[str, str]]) -> StreamingResponse:
         # get_chat_response is a synchronous iterator (Ollama library default)
         # We run it in a loop and yield chunks. 
         # Using anyio.to_thread.run_sync for non-blocking execution of sync iterator
-        response_iterator = await anyio.to_thread.run_sync(get_chat_response, msg)
+        messages = [{"role": "user", "content": q}] if q else []
+        response_iterator = await anyio.to_thread.run_sync(get_chat_response, messages)
         
         for chunk in response_iterator:
             # Yielding the content in SSE format
