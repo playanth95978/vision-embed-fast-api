@@ -1,22 +1,15 @@
 import uuid
 from typing import Any
 
-import ollama
 from fastapi import APIRouter, File, Form, UploadFile
 from sqlalchemy import select, func
 from sqlmodel import col
 
 from app.api.deps import CurrentUser, SessionDep
 from app.models import ImageUpload
+from app.service.image_embedding import ImageEmbedding
 
 router = APIRouter(prefix="/images", tags=["images"])
-
-response = ollama.embeddings(
-    model="nomic-embed-text",
-    prompt="a cat on a table"
-)
-
-embedding = response["embedding"]
 
 
 @router.get("/all", response_model=ImageUpload)
@@ -46,7 +39,7 @@ def read_image(session: SessionDep, current_user: CurrentUser, skip: int = 0, li
 
 
 @router.post("/", response_model=ImageUpload)
-def upload_image(
+async def upload_image(
         *,
         session: SessionDep,
         current_user: CurrentUser,
@@ -61,15 +54,15 @@ def upload_image(
 
     # Placeholder for image URL (assuming local storage or just a name for now)
     image_url = f"/uploads/{uuid.uuid4()}_{file.filename}"
-
-    # Placeholder for vector embedding (e.g., dimension 3 for this example)
+    contents = await file.read()
+    # Placeholder for vector embedding (e.g., dimension 512 for CLIP)
     # The actual storage will depend on pgvector being installed and the column being Vector type.
-    placeholder_embedding = [0.1, 0.2, 0.3]
+    embedding = ImageEmbedding.embed(contents)
 
     image_upload = ImageUpload(
         description=description,
         image_url=image_url,
-        embedding=placeholder_embedding,
+        embedding=embedding,
     )
     session.add(image_upload)
     session.commit()
