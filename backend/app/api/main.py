@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import images, items, login, private, users, utils
+from app.api.routes import chatcontroller, images, items, login, private, users, utils
 from app.core.config import settings
 
 api_router = APIRouter()
@@ -9,6 +9,7 @@ api_router.include_router(users.router)
 api_router.include_router(utils.router)
 api_router.include_router(items.router)
 api_router.include_router(images.router)
+api_router.include_router(chatcontroller.router)
 
 
 if settings.ENVIRONMENT == "local":

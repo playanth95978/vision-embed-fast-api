@@ -1,4 +1,5 @@
 import uuid
+import ollama
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
@@ -7,6 +8,12 @@ from app.models import ImageUpload, Message
 
 router = APIRouter(prefix="/images", tags=["images"])
 
+response = ollama.embeddings(
+    model="nomic-embed-text",
+    prompt="a cat on a table"
+)
+
+embedding = response["embedding"]
 
 @router.post("/", response_model=ImageUpload)
 def upload_image(

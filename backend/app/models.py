@@ -153,3 +153,4 @@ class ImageUpload(ImageUploadBase, table=True):
     # Since I cannot install pgvector here, I will use a simple JSON as a placeholder in the model
     # and provide instructions to change it to Vector in the migration.
     embedding: list[float] | None = Field(default=None, sa_column=Column(JSON))
+ 
