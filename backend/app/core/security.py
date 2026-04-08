@@ -8,10 +8,19 @@ from pwdlib.hashers.bcrypt import BcryptHasher
 
 from app.core.config import settings
 
+if settings.ENVIRONMENT == "local":
+    # En mode local, on réduit la complexité pour accélérer le développement
+    argon2_hasher = Argon2Hasher(time_cost=1, memory_cost=1024, parallelism=1)
+    bcrypt_hasher = BcryptHasher(rounds=4)
+else:
+    # Paramètres sécurisés par défaut pour staging/production
+    argon2_hasher = Argon2Hasher()
+    bcrypt_hasher = BcryptHasher()
+
 password_hash = PasswordHash(
     (
-        Argon2Hasher(),
-        BcryptHasher(),
+        argon2_hasher,
+        bcrypt_hasher,
     )
 )
 

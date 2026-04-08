@@ -1,3 +1,5 @@
+import time
+import logging
 from datetime import timedelta
 from typing import Annotated, Any
 
@@ -18,6 +20,7 @@ from app.utils import (
 )
 
 router = APIRouter(tags=["login"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/login/access-token")
@@ -27,9 +30,13 @@ def login_access_token(
     """
     OAuth2 compatible token login, get an access token for future requests
     """
+    start_time = time.time()
     user = crud.authenticate(
         session=session, email=form_data.username, password=form_data.password
     )
+    auth_duration = time.time() - start_time
+    logger.info(f"Authentication took {auth_duration:.4f} seconds")
+    
     if not user:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     elif not user.is_active:

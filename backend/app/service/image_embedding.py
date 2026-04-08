@@ -12,13 +12,13 @@ class ImageEmbedding:
     @classmethod
     def get_model(cls):
         if cls._model is None:
-            cls._model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+            cls._model = CLIPModel.from_pretrained("models/clip")
         return cls._model
 
     @classmethod
     def get_processor(cls):
         if cls._processor is None:
-            cls._processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+            cls._processor = CLIPProcessor.from_pretrained("models/clip")
         return cls._processor
 
     @classmethod
@@ -32,7 +32,10 @@ class ImageEmbedding:
         with torch.no_grad():
             features = model.get_image_features(**inputs)
 
-        # 🔥 normalisation (TRÈS IMPORTANT pour cosine similarity)
-        features = features / features.norm(p=2, dim=-1, keepdim=True)
+        # 🔒 sécurité : normalisation safe et conversion propre
+        features = features.float()
+        norm = torch.norm(features, p=2, dim=-1, keepdim=True)
+        features = features / (norm + 1e-12)
 
-        return features[0].tolist()
+        # Conversion finale en liste de flottants (1D)
+        return features.flatten().detach().cpu().numpy().tolist()
