@@ -1,13 +1,11 @@
+import certifi
 import sentry_sdk
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from starlette.middleware.cors import CORSMiddleware
-from transformers import CLIPModel, CLIPProcessor
 
 from app.api.main import api_router
 from app.core.config import settings
-import torch
-from PIL import Image
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     return f"{route.tags[0]}-{route.name}"
@@ -34,3 +32,7 @@ if settings.all_cors_origins:
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+@app.on_event("startup")
+def on_startup():
+    print("🚀 Initializing database...")
+    print(certifi.where())

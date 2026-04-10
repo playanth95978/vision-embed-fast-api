@@ -33,6 +33,7 @@ class ImageEmbedding:
             features = model.get_image_features(**inputs)
 
         # 🔒 sécurité : normalisation safe et conversion propre
+        print(features)
         features = features.float()
         norm = torch.norm(features, p=2, dim=-1, keepdim=True)
         features = features / (norm + 1e-12)
