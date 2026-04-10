@@ -2,10 +2,14 @@ import certifi
 import sentry_sdk
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from sqlalchemy import text
+from sqlmodel import Session
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
+from app.core.db import engine, init_db
+
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     return f"{route.tags[0]}-{route.name}"
@@ -36,3 +40,16 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 def on_startup():
     print("🚀 Initializing database...")
     print(certifi.where())
+    try:
+        # 🔥 FORCER une connexion
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+
+        # 🔥 init data
+        with Session(engine) as session:
+            init_db(session)
+
+        print("✅ DB OK")
+    except Exception as e:
+        print(f"❌ DB init error: {e}")
+        raise
