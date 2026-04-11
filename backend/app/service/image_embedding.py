@@ -28,6 +28,8 @@ class ImageEmbedding:
 
     @classmethod
     def _normalize(cls, features: torch.Tensor) -> torch.Tensor:
+        print("🚀 Initializing an embedding model...")
+        print("features =",features)
         features = features.float()
         norm = torch.norm(features, p=2, dim=-1, keepdim=True)
         return features / (norm + 1e-12)

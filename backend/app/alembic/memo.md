@@ -204,5 +204,5 @@ alembic revision --autogenerate -m "..."
 # 3. Corriger à la main (pgvector)
 
 # 4. Appliquer
-alembic upgrade head
+  alembic upgrade head
 ```

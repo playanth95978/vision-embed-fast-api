@@ -28,14 +28,14 @@ def upgrade():
         sa.Column('id', sa.Uuid(), nullable=False),
         sa.Column('description', sa.String(length=1000)),
         sa.Column('image_url', sa.String(length=1000), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True)),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('embedding', Vector(512)),
         sa.PrimaryKeyConstraint('id')
     )
 
     # Index optimisé
     op.execute(
-        "CREATE INDEX image_embedding_idx ON imageupload USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)"
+        "CREATE INDEX ix_image_embedding ON imageupload USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)"
     )
     op.execute(
         "ANALYZE imageupload"
