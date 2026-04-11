@@ -129,31 +129,61 @@ class NewPassword(SQLModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
-# Image Upload model
+# Modèle ImageUpload pour stocker les images et leurs vecteurs d'embedding
 class ImageUploadBase(SQLModel):
+    """
+    Base commune pour le téléchargement d'images.
+    """
     description: str | None = Field(default=None, max_length=1000)
 
 
 class ImageUploadCreate(ImageUploadBase):
-    print(Vector(1536))
+    """
+    Schéma pour la création d'un enregistrement d'image via l'API.
+    """
     pass
 
 
 class ImageUpload(ImageUploadBase, table=True):
+    """
+    Modèle de base de données (Table) pour les images téléchargées.
+    Inclut un support pour les vecteurs d'embedding via pgvector.
+    """
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    # URL ou chemin vers l'image stockée
     image_url: str = Field(max_length=1000)
+    # Date de création avec gestion du fuseau horaire UTC
     created_at: datetime = Field(
         default_factory=get_datetime_utc,
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
-    # The vector column will be added manually in a migration if pgvector isn't available at runtime here
-    # or we can use a placeholder and change it in the migration.
-    # For now, let's keep it in comments or use a list/JSON if we want it to work without pgvector package.
-    # But the user asked for a vector column.
-    # embedding: list[float] = Field(sa_column=Column(Vector(1536))) 
-    # Since I cannot install pgvector here, I will use a simple JSON as a placeholder in the model
-    # and provide instructions to change it to Vector in the migration.
+    # Colonne vectorielle pour la recherche par similarité (dimension 512 pour CLIP)
+    # Utilise l'extension pgvector de PostgreSQL.
     embedding: list[float] | None = Field(
         default=None,
-        sa_column=Column(Vector(512))  # si CLIP
+        sa_column=Column(Vector(512))  # Dimension adaptée pour CLIP (ViT-B/32)
     )
+
+
+class ImageUploadPublic(ImageUploadBase):
+    """
+    Modèle pour retourner les métadonnées d'une image sans le vecteur brut.
+    """
+    id: uuid.UUID
+    image_url: str
+    created_at: datetime
+
+
+class ImageSearchResponse(ImageUploadPublic):
+    """
+    Réponse de recherche incluant le score de similarité (distance).
+    """
+    similarity_score: float
+
+
+class ImageSearchListResponse(SQLModel):
+    """
+    Liste de résultats de recherche.
+    """
+    data: list[ImageSearchResponse]
+    count: int

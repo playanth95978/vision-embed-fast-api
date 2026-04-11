@@ -6,7 +6,7 @@ from sqlalchemy import select, func
 from sqlmodel import col
 
 from app.api.deps import CurrentUser, SessionDep
-from app.models import ImageUpload
+from app.models import ImageUpload, ImageSearchListResponse, ImageSearchResponse
 from app.service.image_embedding import ImageEmbedding
 
 router = APIRouter(prefix="/images", tags=["images"])
@@ -14,7 +14,11 @@ router = APIRouter(prefix="/images", tags=["images"])
 
 @router.get("/all", response_model=ImageUpload)
 def read_image(session: SessionDep, current_user: CurrentUser, skip: int = 0, limit: int = 100) -> Any:
+    """
+    Récupère la liste des images téléchargées avec pagination.
+    """
     if current_user.is_superuser:
+        # Les superutilisateurs voient tout
         count_statement = select(func.count()).select_from(ImageUpload)
         count = session.exec(count_statement).one()
         statement = (
@@ -22,6 +26,7 @@ def read_image(session: SessionDep, current_user: CurrentUser, skip: int = 0, li
         )
         items = session.exec(statement).all()
     else:
+        # Pour l'instant, tout le monde voit tout (pas de filtrage par propriétaire encore implémenté)
         count_statement = (
             select(func.count())
             .select_from(ImageUpload)
@@ -34,7 +39,10 @@ def read_image(session: SessionDep, current_user: CurrentUser, skip: int = 0, li
             .limit(limit)
         )
         items = session.exec(statement).all()
+    
+    # Transformation des objets DB en modèles Pydantic pour la réponse API
     items_public = [ImageUpload.model_validate(item) for item in items]
+    # Retourne les données avec le compte total (utile pour le frontend)
     return ImageUpload(data=items_public, count=count)
 
 
@@ -47,18 +55,19 @@ async def upload_image(
         description: str | None = Form(None),
 ) -> Any:
     """
-    Upload an image and store its metadata and a vector embedding.
+    Télécharge une image, génère son embedding vectoriel via CLIP et l'enregistre en base de données.
     """
-    # In a real scenario, we would save the file to a storage (S3, local disk, etc.)
-    # and generate an embedding using a model (e.g., CLIP, ResNet, etc.)
-
-    # Placeholder for image URL (assuming local storage or just a name for now)
+    # En production, le fichier serait sauvegardé sur un stockage persistant (S3, volume, etc.)
+    # Ici, nous générons une URL fictive pour l'exemple
     image_url = f"/uploads/{uuid.uuid4()}_{file.filename}"
+    
+    # Lecture du contenu binaire du fichier téléchargé
     contents = await file.read()
-    # Placeholder for vector embedding (e.g., dimension 512 for CLIP)
-    # The actual storage will depend on pgvector being installed and the column being Vector type.
+    
+    # Génération du vecteur (embedding) de dimension 512 à l'aide du service AI CLIP
     embedding = ImageEmbedding.embed(contents)
 
+    # Création de l'entrée en base de données
     image_upload = ImageUpload(
         description=description,
         image_url=image_url,
@@ -67,4 +76,47 @@ async def upload_image(
     session.add(image_upload)
     session.commit()
     session.refresh(image_upload)
+    
     return image_upload
+
+
+@router.get("/search", response_model=ImageSearchListResponse)
+def search_images(
+        *,
+        session: SessionDep,
+        query: str,
+        limit: int = 10,
+) -> Any:
+    """
+    Recherche sémantique d'images à partir d'une requête textuelle.
+    Le texte est transformé en vecteur par CLIP, puis comparé aux embeddings en base de données via pgvector.
+    """
+    # 1. Générer l'embedding pour la requête textuelle
+    query_embedding = ImageEmbedding.embed_text(query)
+
+    # 2. Effectuer la recherche par similarité cosinus (ou distance L2, ici on utilise l'opérateur de pgvector)
+    # Dans SQLAlchemy/SQLModel avec pgvector, on utilise .cosine_distance()
+    statement = (
+        select(
+            ImageUpload,
+            ImageUpload.embedding.cosine_distance(query_embedding).label("distance")
+        )
+        .order_by("distance")
+        .limit(limit)
+    )
+    
+    results = session.exec(statement).all()
+
+    # 3. Formater la réponse
+    data = []
+    for image, distance in results:
+        # Conversion de la distance en score de similarité (optionnel, ici on retourne juste la distance nommée similarity_score par convention inverse)
+        # Plus la distance est petite, plus c'est similaire.
+        data.append(
+            ImageSearchResponse(
+                **image.model_dump(),
+                similarity_score=1.0 - float(distance) if distance is not None else 0.0
+            )
+        )
+
+    return ImageSearchListResponse(data=data, count=len(data))
