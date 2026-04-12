@@ -6,6 +6,7 @@ from sqlalchemy import select, func
 from sqlmodel import col
 
 from app.api.deps import CurrentUser, SessionDep
+from app.api.routes.chatcontroller import translate_chat_query
 from app.models import ImageUpload, ImageSearchListResponse, ImageSearchResponse, ImagesPublic, ImageUploadPublic
 from app.service.image_embedding import ImageEmbedding
 
@@ -91,7 +92,8 @@ def search_images(
     """
     # 1. Générer l'embedding pour la requête textuelle
 
-    query_embedding = ImageEmbedding.embed_text(query)
+    translate_query = translate_chat_query(query)
+    query_embedding = ImageEmbedding.embed_text(translate_query["content"])
     distance = ImageUpload.embedding.cosine_distance(query_embedding)
 
     # 2. Effectuer la recherche par similarité cosinus (ou distance L2, ici on utilise l'opérateur de pgvector)
@@ -99,7 +101,7 @@ def search_images(
     statement = (
         select(
             ImageUpload,
-            ImageUpload.embedding.cosine_distance(query_embedding).label("distance")
+            distance.label("distance")
         ).where(distance < 0.3)
         .order_by("distance")
         .limit(limit)
