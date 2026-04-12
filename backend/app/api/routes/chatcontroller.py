@@ -11,17 +11,24 @@ prompt = "You are a professional assistant. Your responses should be concise and
 
 
 
+from pydantic import BaseModel
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+
 @router.post("/stream")
-async def sse_items(q: str | None = None) -> StreamingResponse:
+async def sse_items(request: ChatRequest) -> StreamingResponse:
     """
     Stream chat responses as SSE using standard FastAPI StreamingResponse.
     """
 
     async def event_generator() -> AsyncIterable[str]:
-        # get_chat_response is a synchronous iterator (Ollama library default)
-        # We run it in a loop and yield chunks. 
-        # Using anyio.to_thread.run_sync for non-blocking execution of sync iterator
-        messages = [{"role": "user", "content": q}] if q else []
+        # convert to list of dicts for ollama
+        messages = [{"role": m.role, "content": m.content} for m in request.messages]
         response_iterator = await anyio.to_thread.run_sync(get_chat_response, messages)
 
         for chunk in response_iterator:
