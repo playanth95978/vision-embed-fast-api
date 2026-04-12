@@ -108,6 +108,11 @@ class ItemsPublic(SQLModel):
     count: int
 
 
+class ImagesPublic(SQLModel):
+    data: list[ImageUploadPublic]
+    count: int
+
+
 # Generic message
 class Message(SQLModel):
     message: str

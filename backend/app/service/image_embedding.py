@@ -4,6 +4,7 @@ from typing import List
 import torch
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
+import numpy as np
 
 
 class ImageEmbedding:
@@ -46,14 +47,13 @@ class ImageEmbedding:
         """
         Normalise les vecteurs de caractéristiques (L2 norm) pour permettre la recherche par similarité cosinus.
         """
-        print("🚀 Initializing an embedding model...")
-        print("features =",features)
         if not isinstance(features, torch.Tensor):
+            # Tente de convertir en tenseur si ce n'est pas déjà le cas
             features = torch.tensor(features)
         # Calcul de la norme L2 sur la dernière dimension
         norm = torch.norm(features, p=2, dim=-1, keepdim=True)
         # Division par la norme pour obtenir un vecteur unitaire
-        return features / norm
+        return features / (norm + 1e-12)  # Ajout d'un epsilon pour éviter la division par zéro
 
     @classmethod
     def embed_batch(cls, images_bytes: List[bytes]) -> List[List[float]]:
@@ -81,10 +81,14 @@ class ImageEmbedding:
         # Désactivation du calcul du gradient pour l'inférence (gain de mémoire et de temps)
         with torch.no_grad():
             # Extraction des caractéristiques visuelles
-            features = model.get_image_features(**inputs)
+            # .pooler_output est utilisé car CLIP renvoie parfois un objet complexe selon la version
+            outputs = model.get_image_features(**inputs)
+            features = outputs if isinstance(outputs, torch.Tensor) else outputs.pooler_output
 
         # Normalisation des embeddings
         features = cls._normalize(features)
+
+
 
         # Transfert vers le CPU et conversion en liste Python
         return features.cpu().numpy().tolist()
@@ -110,7 +114,9 @@ class ImageEmbedding:
         # Désactivation du calcul du gradient pour l'inférence
         with torch.inference_mode():
             # Extraction des caractéristiques textuelles
-            features = model.get_text_features(**inputs)
+            # .pooler_output est utilisé pour s'assurer d'obtenir un tenseur
+            outputs = model.get_text_features(**inputs)
+            features = outputs if isinstance(outputs, torch.Tensor) else outputs.pooler_output
 
         # Normalisation de l'embedding pour la similarité cosinus
         features = cls._normalize(features)

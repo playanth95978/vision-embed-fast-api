@@ -6,13 +6,13 @@ from sqlalchemy import select, func
 from sqlmodel import col
 
 from app.api.deps import CurrentUser, SessionDep
-from app.models import ImageUpload, ImageSearchListResponse, ImageSearchResponse
+from app.models import ImageUpload, ImageSearchListResponse, ImageSearchResponse, ImagesPublic, ImageUploadPublic
 from app.service.image_embedding import ImageEmbedding
 
 router = APIRouter(prefix="/images", tags=["images"])
 
 
-@router.get("/all", response_model=ImageUpload)
+@router.get("/all", response_model=ImagesPublic)
 def read_image(session: SessionDep, current_user: CurrentUser, skip: int = 0, limit: int = 100) -> Any:
     """
     Récupère la liste des images téléchargées avec pagination.
@@ -40,13 +40,11 @@ def read_image(session: SessionDep, current_user: CurrentUser, skip: int = 0, li
         )
         items = session.exec(statement).all()
     
-    # Transformation des objets DB en modèles Pydantic pour la réponse API
-    items_public = [ImageUpload.model_validate(item) for item in items]
     # Retourne les données avec le compte total (utile pour le frontend)
-    return ImageUpload(data=items_public, count=count)
+    return ImagesPublic(data=items, count=count)
 
 
-@router.post("/", response_model=ImageUpload)
+@router.post("/", response_model=ImageUploadPublic)
 async def upload_image(
         *,
         session: SessionDep,
@@ -92,7 +90,9 @@ def search_images(
     Le texte est transformé en vecteur par CLIP, puis comparé aux embeddings en base de données via pgvector.
     """
     # 1. Générer l'embedding pour la requête textuelle
+
     query_embedding = ImageEmbedding.embed_text(query)
+    distance = ImageUpload.embedding.cosine_distance(query_embedding)
 
     # 2. Effectuer la recherche par similarité cosinus (ou distance L2, ici on utilise l'opérateur de pgvector)
     # Dans SQLAlchemy/SQLModel avec pgvector, on utilise .cosine_distance()
@@ -100,7 +100,7 @@ def search_images(
         select(
             ImageUpload,
             ImageUpload.embedding.cosine_distance(query_embedding).label("distance")
-        )
+        ).where(distance < 0.3)
         .order_by("distance")
         .limit(limit)
     )
