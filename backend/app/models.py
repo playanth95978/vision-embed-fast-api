@@ -192,3 +192,39 @@ class ImageSearchListResponse(SQLModel):
     """
     data: list[ImageSearchResponse]
     count: int
+
+
+# --- RAG "merged" (portage de l'endpoint /api/chat/merge du backend Spring Boot) ---
+
+
+class SourceInfo(SQLModel):
+    """Source citée renvoyée à l'UI (miroir du record ``SourceInfo`` Java)."""
+
+    title: str
+    source: str
+    url: str
+    score: float
+    kind: str | None = None
+    module: str | None = None
+    startLine: int | None = None
+    endLine: int | None = None
+    viewUrl: str | None = None
+
+    @staticmethod
+    def dump_list(sources: list["SourceInfo"]) -> str:
+        """Sérialise la liste des sources en JSON (contenu de l'event SSE ``sources``)."""
+        import json
+
+        return json.dumps([s.model_dump() for s in sources], ensure_ascii=False)
+
+
+class ChatEvent(SQLModel):
+    """Event SSE du flux de chat (miroir du record ``ChatService.ChatEvent`` Java).
+
+    ``type`` ∈ {"start", "token", "sources", "end"}. Sérialisé tel quel dans le champ
+    ``data`` de chaque event, à l'identique du ``Flux<ChatEvent>`` de Spring WebFlux.
+    """
+
+    id: str
+    type: str
+    content: str | None = None

@@ -55,7 +55,16 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
-    SQLALCHEMY_ECHO: bool = True
+    # Désactivé par défaut : l'écho SQL + le logging DEBUG ralentissent fortement
+    # les migrations Alembic et le démarrage. À n'activer que pour du debug local.
+    SQLALCHEMY_ECHO: bool = False
+
+    # --- RAG (portage de l'endpoint "merged" Spring Boot) ---
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    MISTRAL_API_KEY: str = ""
+    MISTRAL_MODEL: str = "mistral-medium-latest"
+    # Cross-encoder multilingue (identique au backend Java, chargé via FlagEmbedding).
+    RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
 
     @computed_field  # type: ignore[prop-decorator]
     @property

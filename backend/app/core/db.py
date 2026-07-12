@@ -1,33 +1,47 @@
-import time
 import logging
+import time
+
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from sqlmodel import Session, create_engine, select, SQLModel
+from sqlmodel import Session, create_engine, select
 
 from app import crud
 from app.core.config import settings
 from app.models import User, UserCreate
 
-logging.basicConfig()
 logger = logging.getLogger("app.db")
-logger.setLevel(logging.INFO)
-logging.getLogger("sqlalchemy.engine").setLevel(logging.DEBUG)
 
 engine = create_engine(
     str(settings.SQLALCHEMY_DATABASE_URI),
-    echo=settings.SQLALCHEMY_ECHO
+    echo=settings.SQLALCHEMY_ECHO,
+    # pré-ping : évite les erreurs sur connexions coupées sans surcoût notable.
+    pool_pre_ping=True,
+    # recycle des connexions au bout d'une heure (évite les timeouts serveur).
+    pool_recycle=3600,
 )
 
-@event.listens_for(Engine, "before_cursor_execute")
-def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-    context._query_start_time = time.time()
 
-@event.listens_for(Engine, "after_cursor_execute")
-def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-    total = time.time() - context._query_start_time
-    logger.info("Query: %s", statement)
-    logger.info("Parameters: %s", parameters)
-    logger.info("Total execution time: %.4f seconds", total)
+def _register_query_timing_listeners() -> None:
+    """Instrumentation de timing par requête.
+
+    Coûteux (log de chaque statement + paramètres) : réservé au debug et donc
+    branché uniquement quand ``SQLALCHEMY_ECHO`` est actif. C'était la cause de la
+    lenteur au démarrage (migrations + init_db générant des milliers de logs).
+    """
+
+    @event.listens_for(Engine, "before_cursor_execute")
+    def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):  # type: ignore[no-untyped-def]
+        context._query_start_time = time.time()
+
+    @event.listens_for(Engine, "after_cursor_execute")
+    def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):  # type: ignore[no-untyped-def]
+        total = time.time() - context._query_start_time
+        logger.debug("Query (%.4fs): %s | params=%s", total, statement, parameters)
+
+
+if settings.SQLALCHEMY_ECHO:
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.DEBUG)
+    _register_query_timing_listeners()
 
 
 # make sure all SQLModel models are imported (app.models) before initializing DB
