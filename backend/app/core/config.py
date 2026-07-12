@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # --- RAG (portage de l'endpoint "merged" Spring Boot) ---
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    MISTRAL_API_KEY: str = ""
+    MISTRAL_API_KEY: str = "10stzqLYbDBTnQDW7XpS6svXRmHnmg80"
     MISTRAL_MODEL: str = "mistral-medium-latest"
     # Cross-encoder multilingue (identique au backend Java, chargé via FlagEmbedding).
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"

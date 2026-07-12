@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator
 
-from mistralai import Mistral
+from mistralai.client import Mistral
 
 from app.core.config import settings
 from app.service.rag.prompts import build_rewrite_prompt

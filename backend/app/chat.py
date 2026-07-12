@@ -3,7 +3,9 @@ from typing import Iterator, Union
 import anyio
 from ollama import chat, ChatResponse
 
-from app.api.routes.chatcontroller import prompt
+# Défini ici (et non dans chatcontroller) pour éviter un import circulaire :
+# chatcontroller importe app.chat, donc app.chat ne doit pas dépendre de chatcontroller.
+prompt = "You are a professional assistant. Your responses should be concise and helpful. {{query}} You have to translate the user's question in english."
 
 AI_MODEL = 'qwen2.5:7b'
 

@@ -4,10 +4,14 @@ import anyio
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from app.chat import get_chat_response, get_chat_response_no_stream, get_translate_chat_query
+from app.chat import (
+    get_chat_response,
+    get_chat_response_no_stream,
+    get_translate_chat_query,
+    prompt,
+)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-prompt = "You are a professional assistant. Your responses should be concise and helpful. {{query}} You have to translate the user's question in english."
 
 
 

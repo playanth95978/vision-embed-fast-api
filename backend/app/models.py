@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from pydantic import EmailStr
-from sqlalchemy import JSON, Column, DateTime
+from sqlalchemy import JSON, Column, DateTime, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
 from pgvector.sqlalchemy import Vector
 
@@ -228,3 +230,79 @@ class ChatEvent(SQLModel):
     id: str
     type: str
     content: str | None = None
+
+
+class IngestTextRequest(SQLModel):
+    """Corps de requête pour l'ingestion d'un document texte dans les tables vectorielles."""
+
+    title: str
+    content: str
+    url: str | None = None
+    source: str = "CONFLUENCE"
+    docId: str | None = None
+
+
+class IngestResponse(SQLModel):
+    """Résultat d'une ingestion : nombre de chunks insérés."""
+
+    chunks: int
+    source: str
+
+
+# --- Tables vectorielles RAG (schéma compatible Spring AI PgVectorStore) ---
+# Colonnes : id (uuid) · content (text) · metadata (jsonb) · embedding (vector).
+# Fabriques de colonnes : une nouvelle instance de Column par table (SQLAlchemy interdit
+# de partager un même objet Column entre plusieurs modèles).
+
+
+def _content_field() -> Any:
+    return Field(sa_column=Column(Text, nullable=False))
+
+
+def _metadata_field() -> Any:
+    # Attribut ``doc_metadata`` car ``metadata`` est réservé par SQLAlchemy ; colonne DB "metadata".
+    return Field(default_factory=dict, sa_column=Column("metadata", JSONB, nullable=False))
+
+
+def _embedding_field(dim: int) -> Any:
+    return Field(default=None, sa_column=Column(Vector(dim)))
+
+
+class VectorDocs(SQLModel, table=True):
+    """Documentation / Confluence — embeddings ``nomic-embed-text`` (768d)."""
+
+    __tablename__ = "vector_docs"
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    content: str = _content_field()
+    doc_metadata: dict[str, Any] = _metadata_field()
+    embedding: list[float] | None = _embedding_field(768)
+
+
+class VectorJira(SQLModel, table=True):
+    """Tickets Jira — embeddings ``nomic-embed-text`` (768d)."""
+
+    __tablename__ = "vector_jira"
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    content: str = _content_field()
+    doc_metadata: dict[str, Any] = _metadata_field()
+    embedding: list[float] | None = _embedding_field(768)
+
+
+class VectorPdf(SQLModel, table=True):
+    """PDF — embeddings ``nomic-embed-text`` (768d)."""
+
+    __tablename__ = "vector_pdf"
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    content: str = _content_field()
+    doc_metadata: dict[str, Any] = _metadata_field()
+    embedding: list[float] | None = _embedding_field(768)
+
+
+class VectorCode(SQLModel, table=True):
+    """Code / GitHub — embeddings ``mxbai-embed-large`` (1024d)."""
+
+    __tablename__ = "vector_code"
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    content: str = _content_field()
+    doc_metadata: dict[str, Any] = _metadata_field()
+    embedding: list[float] | None = _embedding_field(1024)
