@@ -34,9 +34,9 @@ API **FastAPI** de recherche multimodale : indexation d'images par embeddings **
                             │        embeddings   reranker     LLM
                             │              │         │          │
                             │        ┌─────▼───┐ ┌───▼──────┐ ┌─▼──────────┐
-                            │        │ Ollama  │ │ bge-     │ │ Ollama     │
-                            │        │ nomic / │ │ reranker │ │ mistral    │
-                            │        │ mxbai   │ │ v2-m3    │ │ ou Mistral │
+                            │        │ Ollama  │ │ ONNX     │ │ Ollama     │
+                            │        │ nomic / │ │ bge-rerank│ │ mistral    │
+                            │        │ mxbai   │ │ base INT8│ │ ou Mistral │
                             │        └─────────┘ └──────────┘ │ cloud API  │
                             │                                 └────────────┘
              ┌──────────────▼─────────────────────────────────┐
@@ -60,7 +60,7 @@ question ──► embedding Ollama (par source)
    fusion RRF pondérée (k=60 ; GITHUB 1.2 · CONFLUENCE 1.0 · PDF 0.9 · JIRA 0.8)
                     │  top 20
                     ▼
-   reranking cross-encoder BAAI/bge-reranker-v2-m3  ──►  top 5 (fallback 3)
+   reranking cross-encoder bge-reranker-base INT8 (ONNX, 128 tokens) ──► top 5 (fallback 3)
                     │
                     ▼
    prompt + contexte ──► LLM (Ollama `mistral:latest` ou Mistral cloud)
@@ -95,7 +95,7 @@ requête texte ──► CLIP (text encoder)           ──► vecteur 512d �
 | Vision | transformers · torch · pillow | `>=5.5` · `>=2.11` · `>=12.2` |
 | Embeddings | ollama | `>=0.6.0` |
 | LLM cloud | mistralai | `>=1.9.11` |
-| Reranker | sentence-transformers (CrossEncoder) | `>=5.6.0` |
+| Reranker | onnxruntime · tokenizers | `>=1.18` · `>=0.20` |
 | Chunking / PDF | langchain-text-splitters · pypdf | `>=0.3.8` · `>=6.1.1` |
 | Auth | pyjwt · pwdlib[argon2,bcrypt] | `>=2.8` · `>=0.3` |
 | Observabilité | sentry-sdk[fastapi] | `>=2.0,<3` |
@@ -108,7 +108,7 @@ requête texte ──► CLIP (text encoder)           ──► vecteur 512d �
 | Image + texte→image | `openai/clip-vit-base-patch32` | 512 |
 | Embeddings texte (Confluence, Jira, PDF) | `nomic-embed-text` (Ollama) | 768 |
 | Embeddings code (GitHub) | `mxbai-embed-large` (Ollama) | 1024 |
-| Reranking | `BAAI/bge-reranker-v2-m3` | — |
+| Reranking | `bge-reranker-base` INT8 ONNX (278 M) | — |
 | Génération | `mistral:latest` (Ollama) ou `mistral-medium-latest` (cloud) | — |
 
 ### Frontend (`frontend/package.json`)
@@ -187,8 +187,11 @@ cd backend && uv run alembic upgrade head
 Lancer l'API en mode dev (reload) :
 
 ```bash
-cd backend && uv run fastapi dev app/main.py
+cd backend && PYTHONUTF8=1 uv run fastapi dev app/main.py
 ```
+
+> `PYTHONUTF8=1` est indispensable sur Windows : sans lui, le banner de démarrage de FastAPI
+> (emoji 🚀) fait échouer le processus avec un `UnicodeEncodeError` en console cp1252.
 
 Pré-télécharger le modèle CLIP en local (optionnel, évite le download au premier appel) :
 
@@ -210,7 +213,16 @@ Régénérer le client TypeScript depuis l'OpenAPI (backend démarré) :
 cd frontend && npm run generate-client
 ```
 
-### 3.4 Ollama (RAG local)
+### 3.4 Modèle de reranking
+
+Le cross-encoder (~280 Mo) n'est pas versionné. Il est téléchargé automatiquement au premier
+reranking, mais mieux vaut le pré-installer :
+
+```bash
+./scripts/download-reranker.sh
+```
+
+### 3.5 Ollama (RAG local)
 
 ```bash
 ollama pull nomic-embed-text && ollama pull mxbai-embed-large && ollama pull mistral
@@ -234,7 +246,9 @@ Pour utiliser Mistral cloud à la place : `RAG_LLM_PROVIDER=mistral` et `MISTRAL
 | `RAG_LLM_PROVIDER` | `ollama` ou `mistral` | `ollama` |
 | `RAG_LLM_MODEL` | Modèle Ollama de génération | `mistral:latest` |
 | `MISTRAL_API_KEY` / `MISTRAL_MODEL` | Mistral cloud | — / `mistral-medium-latest` |
-| `RERANKER_MODEL` | Cross-encoder de reranking | `BAAI/bge-reranker-v2-m3` |
+| `RERANKER_ONNX_PATH` / `RERANKER_TOKENIZER_PATH` | Modèle et tokenizer de reranking (solidaires) | `models/rerankers/bge-base/…` |
+| `RERANKER_MAX_LENGTH` | Troncature en tokens | `128` |
+| `RERANKER_INTRA_OP_THREADS` | Threads ONNX par inférence (0 = tous) | `0` |
 | `BACKEND_CORS_ORIGINS` | Origines autorisées | — |
 | `SENTRY_DSN` | Monitoring | — |
 
@@ -261,7 +275,28 @@ Documentation interactive : http://localhost:8000/docs
 
 ---
 
-## 6. Tests & qualité
+## 6. Bancs de mesure
+
+```bash
+cd backend && uv run python scripts/bench_reranker.py
+```
+
+Précision (P@1, exact@5, nDCG@10, MRR sur corpus étiqueté) et débit CPU du reranker, même
+protocole que les bancs Java de job-search-ai. Mesuré sur 16 cœurs, lots de 20/30/60 documents :
+
+| modèle | ms/doc | docs/s | P@1 | nDCG@10 | MRR |
+|---|---|---|---|---|---|
+| bge-reranker-base INT8 ONNX @128 (production) | 46-57 | 17-22 | 1.00 | 0,945-0,989 | 1.00 |
+| bge-reranker-v2-m3 torch @256 (ancien) | 128-159 | 6-8 | 1.00 | 0,948-0,983 | 1.00 |
+
+Test RAG de bout en bout contre une API démarrée (ingestion + questions SSE + vérification
+des sources) :
+
+```bash
+cd backend && uv run python scripts/smoke_rag.py
+```
+
+## 7. Tests & qualité
 
 ```bash
 cd backend && uv run bash scripts/test.sh
@@ -279,7 +314,7 @@ uv run prek install -f
 
 ---
 
-## 7. Déploiement
+## 8. Déploiement
 
 Voir [deployment.md](deployment.md) (Docker Compose + Traefik, HTTPS automatique) et [development.md](development.md) pour le détail du workflow local. CI/CD via GitHub Actions.
 

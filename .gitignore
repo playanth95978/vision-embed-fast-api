@@ -5,3 +5,6 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Modèles de reranking (~280 Mo) : installés par scripts/download-reranker.sh
+backend/models/

@@ -68,7 +68,25 @@ class Settings(BaseSettings):
     # Mistral cloud (utilisé seulement si RAG_LLM_PROVIDER == "mistral") — clé via .env, jamais en dur.
     MISTRAL_API_KEY: str = ""
     MISTRAL_MODEL: str = "mistral-medium-latest"
-    # Cross-encoder multilingue (identique au backend Java), via sentence-transformers.
+    # --- Reranking (réglages repris du backend Java, où ils ont été mesurés) ---
+    # bge-reranker-base INT8 (278 M, multilingue) : 2,9x plus rapide que bge-reranker-v2-m3
+    # pour la meilleure fidélité de classement des candidats évalués (RerankerModelComparisonBenchmark).
+    # Modèle et tokenizer sont SOLIDAIRES : en changer un sans l'autre produit des scores absurdes
+    # sans la moindre erreur au démarrage.
+    RERANKER_ONNX_PATH: str = "models/rerankers/bge-base/model.onnx"
+    RERANKER_TOKENIZER_PATH: str = "models/rerankers/bge-base/tokenizer.json"
+    RERANKER_MODEL_URL: str = (
+        "https://huggingface.co/onnx-community/bge-reranker-base-ONNX/resolve/main/onnx/model_int8.onnx"
+    )
+    RERANKER_TOKENIZER_URL: str = (
+        "https://huggingface.co/onnx-community/bge-reranker-base-ONNX/resolve/main/tokenizer.json"
+    )
+    # Troncature en tokens. Mesuré sur bge-reranker-base : 128 au lieu de 256 rapporte ~1,8x
+    # pour une corrélation de rangs de ~0,83. Ne pas descendre à 64, le top-1 s'effondre.
+    RERANKER_MAX_LENGTH: int = 128
+    # Threads ONNX par inférence ; 0 = tous les cœurs. Mesuré : brider dégrade débit ET latence.
+    RERANKER_INTRA_OP_THREADS: int = 0
+    # Ancien modèle torch (sentence-transformers), conservé pour le banc comparatif.
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
 
     @computed_field  # type: ignore[prop-decorator]

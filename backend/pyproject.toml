@@ -28,7 +28,10 @@ dependencies = [
     # RAG "merged" : embeddings Ollama, LLM Mistral, reranker cross-encoder.
     "ollama>=0.6.0",
     "mistralai>=1.9.11",
-    # Reranker via CrossEncoder (compatible transformers 5.x, contrairement à FlagEmbedding).
+    # Reranker : runtime ONNX + tokenizer HF, mêmes composants que le backend Java.
+    "onnxruntime>=1.18.0",
+    "tokenizers>=0.20.0",
+    # CrossEncoder torch : plus utilisé en production, gardé pour le banc comparatif.
     "sentence-transformers>=5.6.0",
     # Ingestion : chunking (haut niveau) + extraction PDF.
     "langchain-text-splitters>=0.3.8",
@@ -75,6 +78,11 @@ ignore = [
     "W191",  # indentation contains tabs
     "B904",  # Allow raising exceptions without from e, for HTTPException
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# Les scripts de banc et de smoke test sont des outils en ligne de commande : leur sortie
+# console EST le résultat, T201 (interdiction de print) n'y a pas de sens.
+"scripts/*" = ["T201"]
 
 [tool.ruff.lint.pyupgrade]
 # Preserve types, even if a file imports `from __future__ import annotations`.
