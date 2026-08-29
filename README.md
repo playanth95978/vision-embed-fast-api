@@ -1,233 +1,290 @@
-# Full Stack FastAPI Template
+# vision-embed-fast-api
 
-<a href="https://github.com/fastapi/full-stack-fastapi-template/actions?query=workflow%3A%22Test+Docker+Compose%22" target="_blank"><img src="https://github.com/fastapi/full-stack-fastapi-template/workflows/Test%20Docker%20Compose/badge.svg" alt="Test Docker Compose"></a>
-<a href="https://github.com/fastapi/full-stack-fastapi-template/actions?query=workflow%3A%22Test+Backend%22" target="_blank"><img src="https://github.com/fastapi/full-stack-fastapi-template/workflows/Test%20Backend/badge.svg" alt="Test Backend"></a>
-<a href="https://coverage-badge.samuelcolvin.workers.dev/redirect/fastapi/full-stack-fastapi-template" target="_blank"><img src="https://coverage-badge.samuelcolvin.workers.dev/fastapi/full-stack-fastapi-template.svg" alt="Coverage"></a>
+API **FastAPI** de recherche multimodale : indexation d'images par embeddings **CLIP** + pipeline **RAG hybride** (pgvector + BM25 ParadeDB, fusion RRF, reranking cross-encoder, génération Ollama/Mistral), avec un frontend **React 19**.
 
-## Technology Stack and Features
+---
 
-- ⚡ [**FastAPI**](https://fastapi.tiangolo.com) for the Python backend API.
-  - 🧰 [SQLModel](https://sqlmodel.tiangolo.com) for the Python SQL database interactions (ORM).
-  - 🔍 [Pydantic](https://docs.pydantic.dev), used by FastAPI, for the data validation and settings management.
-  - 💾 [PostgreSQL](https://www.postgresql.org) as the SQL database.
-- 🚀 [React](https://react.dev) for the frontend.
-  - 💃 Using TypeScript, hooks, [Vite](https://vitejs.dev), and other parts of a modern frontend stack.
-  - 🎨 [Tailwind CSS](https://tailwindcss.com) and [shadcn/ui](https://ui.shadcn.com) for the frontend components.
-  - 🤖 An automatically generated frontend client.
-  - 🧪 [Playwright](https://playwright.dev) for End-to-End testing.
-  - 🦇 Dark mode support.
-- 🐋 [Docker Compose](https://www.docker.com) for development and production.
-- 🔒 Secure password hashing by default.
-- 🔑 JWT (JSON Web Token) authentication.
-- 📫 Email based password recovery.
-- 📬 [Mailcatcher](https://mailcatcher.me) for local email testing during development.
-- ✅ Tests with [Pytest](https://pytest.org).
-- 📞 [Traefik](https://traefik.io) as a reverse proxy / load balancer.
-- 🚢 Deployment instructions using Docker Compose, including how to set up a frontend Traefik proxy to handle automatic HTTPS certificates.
-- 🏭 CI (continuous integration) and CD (continuous deployment) based on GitHub Actions.
+## 1. Architecture
 
-### Dashboard Login
-
-[![API docs](img/login.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Dashboard - Admin
-
-[![API docs](img/dashboard.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Dashboard - Items
-
-[![API docs](img/dashboard-items.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Dashboard - Dark Mode
-
-[![API docs](img/dashboard-dark.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Interactive API Documentation
-
-[![API docs](img/docs.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-## How To Use It
-
-You can **just fork or clone** this repository and use it as is.
-
-✨ It just works. ✨
-
-### How to Use a Private Repository
-
-If you want to have a private repository, GitHub won't allow you to simply fork it as it doesn't allow changing the visibility of forks.
-
-But you can do the following:
-
-- Create a new GitHub repo, for example `my-full-stack`.
-- Clone this repository manually, set the name with the name of the project you want to use, for example `my-full-stack`:
-
-```bash
-git clone git@github.com:fastapi/full-stack-fastapi-template.git my-full-stack
+```
+                        ┌─────────────────────────────┐
+                        │  Frontend React 19 + Vite   │
+                        │  TanStack Router/Query      │
+                        │  Tailwind 4 + shadcn/ui     │
+                        │  client TS auto-généré      │
+                        └──────────────┬──────────────┘
+                                       │ HTTP  /api/v1  (JWT)
+                        ┌──────────────▼──────────────┐
+                        │      FastAPI (Granian)      │
+                        │  SQLModel · Pydantic v2     │
+                        ├─────────────────────────────┤
+                        │ /login /users /items /utils │
+                        │ /images   → CLIP            │
+                        │ /rag      → ingestion       │
+                        │ /chat     → SSE streaming   │
+                        └───┬──────────────────┬──────┘
+                            │                  │
+             ┌──────────────▼───────┐   ┌──────▼────────────────────────┐
+             │  Service image       │   │  Service RAG                  │
+             │  CLIP ViT-B/32       │   │  ingestion → retrieval →      │
+             │  (transformers/torch)│   │  RRF → rerank → LLM           │
+             │  vecteurs 512d       │   │                               │
+             └──────────────┬───────┘   └──┬─────────┬──────────┬───────┘
+                            │              │         │          │
+                            │        embeddings   reranker     LLM
+                            │              │         │          │
+                            │        ┌─────▼───┐ ┌───▼──────┐ ┌─▼──────────┐
+                            │        │ Ollama  │ │ bge-     │ │ Ollama     │
+                            │        │ nomic / │ │ reranker │ │ mistral    │
+                            │        │ mxbai   │ │ v2-m3    │ │ ou Mistral │
+                            │        └─────────┘ └──────────┘ │ cloud API  │
+                            │                                 └────────────┘
+             ┌──────────────▼─────────────────────────────────┐
+             │       PostgreSQL — image paradedb/paradedb     │
+             │  pgvector (cosine) + BM25 (pg_search ParadeDB) │
+             │  imageupload(embedding 512)                    │
+             │  vector_docs / vector_jira / vector_pdf   768  │
+             │  vector_code                             1024  │
+             │  migrations Alembic                            │
+             └────────────────────────────────────────────────┘
 ```
 
-- Enter into the new directory:
+### Pipeline RAG (`/api/v1/rag`, `/api/v1/chat`)
 
-```bash
-cd my-full-stack
+```
+question ──► embedding Ollama (par source)
+         ├─► recherche vectorielle pgvector (cosine, seuil 0.3, 30/source)
+         └─► recherche lexicale BM25 ParadeDB (30/source)
+                    │
+                    ▼
+   fusion RRF pondérée (k=60 ; GITHUB 1.2 · CONFLUENCE 1.0 · PDF 0.9 · JIRA 0.8)
+                    │  top 20
+                    ▼
+   reranking cross-encoder BAAI/bge-reranker-v2-m3  ──►  top 5 (fallback 3)
+                    │
+                    ▼
+   prompt + contexte ──► LLM (Ollama `mistral:latest` ou Mistral cloud)
+                    │
+                    ▼
+   réponse en streaming SSE + sources citées
 ```
 
-- Set the new origin to your new repository, copy it from the GitHub interface, for example:
+### Pipeline images (`/api/v1/images`)
 
-```bash
-git remote set-url origin git@github.com:octocat/my-full-stack.git
+```
+upload image  ──► CLIP ViT-B/32 (image encoder) ──► vecteur 512d normalisé L2 ──► imageupload.embedding
+requête texte ──► CLIP (text encoder)           ──► vecteur 512d ──► ORDER BY embedding <=> query
 ```
 
-- Add this repo as another "remote" to allow you to get updates later:
+---
+
+## 2. Stack technique & versions
+
+### Backend (`backend/pyproject.toml`)
+
+| Domaine | Techno | Version |
+|---|---|---|
+| Langage | Python | `>=3.10,<4.0` (image Docker : 3.10) |
+| Gestion deps | uv (`uv.lock`) | 0.11+ |
+| API | FastAPI `[standard]` | `>=0.114.2,<1.0` |
+| Serveur ASGI | Granian | `>=2.7.3` |
+| ORM / modèles | SQLModel · Pydantic | `>=0.0.21` · `>2.0` |
+| Driver DB | psycopg (binary) | `>=3.1.13,<4` |
+| Migrations | Alembic | `>=1.12.1,<2` |
+| Vecteurs | pgvector | `>=0.4.2` |
+| Vision | transformers · torch · pillow | `>=5.5` · `>=2.11` · `>=12.2` |
+| Embeddings | ollama | `>=0.6.0` |
+| LLM cloud | mistralai | `>=1.9.11` |
+| Reranker | sentence-transformers (CrossEncoder) | `>=5.6.0` |
+| Chunking / PDF | langchain-text-splitters · pypdf | `>=0.3.8` · `>=6.1.1` |
+| Auth | pyjwt · pwdlib[argon2,bcrypt] | `>=2.8` · `>=0.3` |
+| Observabilité | sentry-sdk[fastapi] | `>=2.0,<3` |
+| Qualité | ruff · mypy (strict) · ty · pytest · coverage · prek | cf. `[dependency-groups]` |
+
+### Modèles ML
+
+| Usage | Modèle | Dimension |
+|---|---|---|
+| Image + texte→image | `openai/clip-vit-base-patch32` | 512 |
+| Embeddings texte (Confluence, Jira, PDF) | `nomic-embed-text` (Ollama) | 768 |
+| Embeddings code (GitHub) | `mxbai-embed-large` (Ollama) | 1024 |
+| Reranking | `BAAI/bge-reranker-v2-m3` | — |
+| Génération | `mistral:latest` (Ollama) ou `mistral-medium-latest` (cloud) | — |
+
+### Frontend (`frontend/package.json`)
+
+| Domaine | Techno | Version |
+|---|---|---|
+| UI | React · React DOM | `^19.1` · `^19.2` |
+| Build | Vite · plugin-react-swc · TypeScript | `^7.3` · `^4.2` · `^5.9` |
+| Routing / data | TanStack Router · Query · Table | `^1.163` · `^5.90` · `^8.21` |
+| Style | Tailwind CSS 4 · shadcn/ui (Radix) · lucide-react | `^4.2` |
+| Formulaires | react-hook-form · zod · @hookform/resolvers | `^7.68` · `^4.3` · `^5.2` |
+| HTTP | axios + client généré via `@hey-api/openapi-ts` | `1.13.5` · `0.73.0` |
+| Lint | Biome | `^2.3` |
+| E2E | Playwright | `1.58.2` |
+| Runtime dev | Node 22 / Bun 1.3 (`bun.lock`) | — |
+
+### Infrastructure
+
+| Composant | Image / outil |
+|---|---|
+| Base de données | `paradedb/paradedb:latest` (Postgres + pgvector + BM25), exposée sur `127.0.0.1:5433` |
+| Admin DB | `adminer` |
+| Reverse proxy | Traefik (`compose.traefik.yml`) |
+| Mails de dev | Mailcatcher |
+| Orchestration | Docker Compose (`compose.yml`, `compose.override.yml`) |
+| CI/CD | GitHub Actions (`.github/`) |
+
+---
+
+## 3. Démarrage
+
+### Prérequis
+
+- Docker + Docker Compose
+- [uv](https://docs.astral.sh/uv/) (backend), Node 22+ ou Bun (frontend)
+- [Ollama](https://ollama.com) si vous utilisez le RAG en local
+- Un fichier `.env` à la racine (voir §4)
+
+### 3.1 Tout en Docker (le plus simple)
 
 ```bash
-git remote add upstream git@github.com:fastapi/full-stack-fastapi-template.git
+docker compose watch
 ```
 
-- Push the code to your new repository:
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| API | http://localhost:8000 |
+| Swagger / OpenAPI | http://localhost:8000/docs |
+| Adminer | http://localhost:8080 |
+| Mailcatcher | http://localhost:1080 |
+| Traefik UI | http://localhost:8090 |
+
+Logs : `docker compose logs backend` · Arrêt : `docker compose down`
+
+### 3.2 Développement local (backend hors Docker)
+
+Démarrer uniquement la base :
 
 ```bash
-git push -u origin master
+docker compose up -d db
 ```
 
-### Update From the Original Template
-
-After cloning the repository, and after doing changes, you might want to get the latest changes from this original template.
-
-- Make sure you added the original repository as a remote, you can check it with:
+Installer les dépendances Python :
 
 ```bash
-git remote -v
-
-origin    git@github.com:octocat/my-full-stack.git (fetch)
-origin    git@github.com:octocat/my-full-stack.git (push)
-upstream    git@github.com:fastapi/full-stack-fastapi-template.git (fetch)
-upstream    git@github.com:fastapi/full-stack-fastapi-template.git (push)
+cd backend && uv sync
 ```
 
-- Pull the latest changes without merging:
+Appliquer les migrations :
 
 ```bash
-git pull --no-commit upstream master
+cd backend && uv run alembic upgrade head
 ```
 
-This will download the latest changes from this template without committing them, that way you can check everything is right before committing.
-
-- If there are conflicts, solve them in your editor.
-
-- Once you are done, commit the changes:
+Lancer l'API en mode dev (reload) :
 
 ```bash
-git merge --continue
+cd backend && uv run fastapi dev app/main.py
 ```
 
-### Configure
-
-You can then update configs in the `.env` files to customize your configurations.
-
-Before deploying it, make sure you change at least the values for:
-
-- `SECRET_KEY`
-- `FIRST_SUPERUSER_PASSWORD`
-- `POSTGRES_PASSWORD`
-
-You can (and should) pass these as environment variables from secrets.
-
-Read the [deployment.md](./deployment.md) docs for more details.
-
-### Generate Secret Keys
-
-Some environment variables in the `.env` file have a default value of `changethis`.
-
-You have to change them with a secret key, to generate secret keys you can run the following command:
+Pré-télécharger le modèle CLIP en local (optionnel, évite le download au premier appel) :
 
 ```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
+cd backend && uv run python download.py
 ```
 
-Copy the content and use that as password / secret key. And run that again to generate another secure key.
+> En local hors Docker, mettre `POSTGRES_SERVER=localhost` et `POSTGRES_PORT=5433` dans `.env`.
 
-## How To Use It - Alternative With Copier
-
-This repository also supports generating a new project using [Copier](https://copier.readthedocs.io).
-
-It will copy all the files, ask you configuration questions, and update the `.env` files with your answers.
-
-### Install Copier
-
-You can install Copier with:
+### 3.3 Frontend
 
 ```bash
-pip install copier
+cd frontend && npm install && npm run dev
 ```
 
-Or better, if you have [`pipx`](https://pipx.pypa.io/), you can run it with:
+Régénérer le client TypeScript depuis l'OpenAPI (backend démarré) :
 
 ```bash
-pipx install copier
+cd frontend && npm run generate-client
 ```
 
-**Note**: If you have `pipx`, installing copier is optional, you could run it directly.
-
-### Generate a Project With Copier
-
-Decide a name for your new project's directory, you will use it below. For example, `my-awesome-project`.
-
-Go to the directory that will be the parent of your project, and run the command with your project's name:
+### 3.4 Ollama (RAG local)
 
 ```bash
-copier copy https://github.com/fastapi/full-stack-fastapi-template my-awesome-project --trust
+ollama pull nomic-embed-text && ollama pull mxbai-embed-large && ollama pull mistral
 ```
 
-If you have `pipx` and you didn't install `copier`, you can run it directly:
+Pour utiliser Mistral cloud à la place : `RAG_LLM_PROVIDER=mistral` et `MISTRAL_API_KEY=...` dans `.env`.
+
+---
+
+## 4. Configuration (`.env`)
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `ENVIRONMENT` | `local` / `staging` / `production` | `local` |
+| `SECRET_KEY` | Signature JWT | généré |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Durée du token | 8 jours |
+| `FIRST_SUPERUSER` / `FIRST_SUPERUSER_PASSWORD` | Compte admin créé au prestart | — |
+| `POSTGRES_SERVER` / `_PORT` / `_DB` / `_USER` / `_PASSWORD` | Connexion DB | `5432` (`5433` côté hôte) |
+| `SQLALCHEMY_ECHO` | Écho SQL (ralentit fortement le démarrage) | `false` |
+| `OLLAMA_BASE_URL` | Serveur Ollama | `http://localhost:11434` |
+| `RAG_LLM_PROVIDER` | `ollama` ou `mistral` | `ollama` |
+| `RAG_LLM_MODEL` | Modèle Ollama de génération | `mistral:latest` |
+| `MISTRAL_API_KEY` / `MISTRAL_MODEL` | Mistral cloud | — / `mistral-medium-latest` |
+| `RERANKER_MODEL` | Cross-encoder de reranking | `BAAI/bge-reranker-v2-m3` |
+| `BACKEND_CORS_ORIGINS` | Origines autorisées | — |
+| `SENTRY_DSN` | Monitoring | — |
+
+> Ne committez jamais de secrets : `.env` en local uniquement, variables d'environnement en déploiement.
+
+---
+
+## 5. API (préfixe `/api/v1`)
+
+| Méthode | Route | Description |
+|---|---|---|
+| `POST` | `/login/access-token` | Authentification JWT |
+| `*` | `/users`, `/items` | CRUD standard |
+| `GET` | `/images/all` | Liste paginée des images |
+| `POST` | `/images/` | Upload + embedding CLIP |
+| `GET` | `/images/search` | Recherche sémantique texte→image |
+| `POST` | `/rag/ingest/text` | Ingestion d'un texte (chunks 1000 / overlap 200, upsert par `docId`) |
+| `POST` | `/rag/ingest/file` | Ingestion d'un fichier (PDF via pypdf) |
+| `GET` | `/rag/merge` | Recherche hybride + RRF + reranking |
+| `POST` | `/chat/stream` | Réponse LLM en streaming SSE avec sources |
+| `GET` | `/chat/translate` | Traduction de la requête utilisateur |
+
+Documentation interactive : http://localhost:8000/docs
+
+---
+
+## 6. Tests & qualité
 
 ```bash
-pipx run copier copy https://github.com/fastapi/full-stack-fastapi-template my-awesome-project --trust
+cd backend && uv run bash scripts/test.sh
 ```
 
-**Note** the `--trust` option is necessary to be able to execute a [post-creation script](https://github.com/fastapi/full-stack-fastapi-template/blob/master/.copier/update_dotenv.py) that updates your `.env` files.
+```bash
+cd frontend && npm run lint && npx playwright test
+```
 
-### Input Variables
+Hooks pre-commit :
 
-Copier will ask you for some data, you might want to have at hand before generating the project.
+```bash
+uv run prek install -f
+```
 
-But don't worry, you can just update any of that in the `.env` files afterwards.
+---
 
-The input variables, with their default values (some auto generated) are:
+## 7. Déploiement
 
-- `project_name`: (default: `"FastAPI Project"`) The name of the project, shown to API users (in .env).
-- `stack_name`: (default: `"fastapi-project"`) The name of the stack used for Docker Compose labels and project name (no spaces, no periods) (in .env).
-- `secret_key`: (default: `"changethis"`) The secret key for the project, used for security, stored in .env, you can generate one with the method above.
-- `first_superuser`: (default: `"admin@example.com"`) The email of the first superuser (in .env).
-- `first_superuser_password`: (default: `"changethis"`) The password of the first superuser (in .env).
-- `smtp_host`: (default: "") The SMTP server host to send emails, you can set it later in .env.
-- `smtp_user`: (default: "") The SMTP server user to send emails, you can set it later in .env.
-- `smtp_password`: (default: "") The SMTP server password to send emails, you can set it later in .env.
-- `emails_from_email`: (default: `"info@example.com"`) The email account to send emails from, you can set it later in .env.
-- `postgres_password`: (default: `"changethis"`) The password for the PostgreSQL database, stored in .env, you can generate one with the method above.
-- `sentry_dsn`: (default: "") The DSN for Sentry, if you are using it, you can set it later in .env.
+Voir [deployment.md](deployment.md) (Docker Compose + Traefik, HTTPS automatique) et [development.md](development.md) pour le détail du workflow local. CI/CD via GitHub Actions.
 
-## Backend Development
+---
 
-Backend docs: [backend/README.md](./backend/README.md).
+## Licence & contribution
 
-## Frontend Development
-
-Frontend docs: [frontend/README.md](./frontend/README.md).
-
-## Deployment
-
-Deployment docs: [deployment.md](./deployment.md).
-
-## Development
-
-General development docs: [development.md](./development.md).
-
-This includes using Docker Compose, custom local domains, `.env` configurations, etc.
-
-## Release Notes
-
-Check the file [release-notes.md](./release-notes.md).
-
-## License
-
-The Full Stack FastAPI Template is licensed under the terms of the MIT license.
+[LICENSE](LICENSE) · [SECURITY.md](SECURITY.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
