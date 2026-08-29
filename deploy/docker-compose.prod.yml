@@ -1,0 +1,121 @@
+# ===================================================================
+# Production stack for the RAG app (vision-embed-fast-api) on the Hostinger VPS.
+#
+# MUTUALISATION : réutilise l'Ollama de job-search-ai (conteneur "jsa-ollama"),
+# qui a déjà les modèles d'embedding nomic-embed-text + mxbai-embed-large.
+# On NE lance donc PAS de 2e Ollama ici. Le backend le joint via le réseau externe
+# "job-search-ai_default". DB et cache reranker restent isolés (pas de collision).
+#
+#   cd deploy
+#   cp .env.example .env            # remplir DOMAIN, secrets…
+#   # 1x : s'assurer qu'un modèle de chat est présent dans l'Ollama partagé
+#   docker exec jsa-ollama ollama pull qwen2.5:3b
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Servi sur  https://rag.${DOMAIN}  (record DNS A "rag" -> IP du VPS).
+# ===================================================================
+
+name: rag
+
+networks:
+  default:
+  # Réseau du stack job-search-ai, où tourne "jsa-ollama". Doit déjà exister.
+  shared-ollama:
+    external: true
+    name: job-search-ai_default
+
+services:
+  db:
+    image: paradedb/paradedb:latest        # pgvector + BM25 (pg_search) intégrés
+    container_name: rag-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - rag-db-data:/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5434:5432"             # 5432 = job-search-ai, 5433 = dev
+
+  # One-shot : garantit la présence des modèles requis dans l'Ollama PARTAGÉ.
+  # (nomic + mxbai sont déjà là via job-search-ai ; pull idempotent. qwen2.5:3b = LLM léger.)
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: rag-ollama-pull
+    networks:
+      - shared-ollama
+    environment:
+      OLLAMA_HOST: http://jsa-ollama:11434
+    entrypoint: ['/bin/sh', '-c', 'ollama pull nomic-embed-text && ollama pull mxbai-embed-large && ollama pull ${RAG_LLM_MODEL:-qwen2.5:3b}']
+    restart: 'no'
+
+  # One-shot : migrations Alembic (tables vectorielles + extensions) + superuser initial.
+  prestart:
+    image: rag-backend:latest
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: rag-prestart
+    command: bash scripts/prestart.sh
+    env_file:
+      - .env
+    environment:
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: 'no'
+
+  backend:
+    image: rag-backend:latest
+    container_name: rag-backend
+    # 2 workers : chaque worker charge le reranker (~2 Go) en RAM.
+    command: fastapi run --workers 2 app/main.py
+    networks:
+      - default
+      - shared-ollama                       # pour joindre jsa-ollama
+    env_file:
+      - .env
+    environment:
+      ENVIRONMENT: production
+      POSTGRES_SERVER: db
+      POSTGRES_PORT: 5432
+      OLLAMA_BASE_URL: http://jsa-ollama:11434   # Ollama mutualisé
+      RAG_LLM_PROVIDER: ${RAG_LLM_PROVIDER:-ollama}
+      RAG_LLM_MODEL: ${RAG_LLM_MODEL:-qwen2.5:3b}
+    volumes:
+      # Persiste le modèle de reranking bge-reranker-v2-m3 (~2 Go, 1er appel).
+      - rag-hf-cache:/root/.cache/huggingface
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/api/v1/utils/health-check/']
+      interval: 10s
+      timeout: 5s
+      retries: 40
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
+      prestart:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    # Exposé via le Traefik existant (host network) — aucun port public publié.
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=rag_default'
+      - 'traefik.http.routers.rag.rule=Host(`rag.${DOMAIN}`)'
+      - 'traefik.http.routers.rag.entrypoints=websecure'
+      - 'traefik.http.routers.rag.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.rag.loadbalancer.server.port=8000'
+
+volumes:
+  rag-db-data:
+  rag-hf-cache:

@@ -61,9 +61,14 @@ class Settings(BaseSettings):
 
     # --- RAG (portage de l'endpoint "merged" Spring Boot) ---
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    MISTRAL_API_KEY: str = "10stzqLYbDBTnQDW7XpS6svXRmHnmg80"
+    # Fournisseur LLM pour la génération : "ollama" (local, défaut) ou "mistral" (cloud).
+    RAG_LLM_PROVIDER: Literal["ollama", "mistral"] = "ollama"
+    # Modèle Ollama utilisé quand RAG_LLM_PROVIDER == "ollama".
+    RAG_LLM_MODEL: str = "mistral:latest"
+    # Mistral cloud (utilisé seulement si RAG_LLM_PROVIDER == "mistral") — clé via .env, jamais en dur.
+    MISTRAL_API_KEY: str = ""
     MISTRAL_MODEL: str = "mistral-medium-latest"
-    # Cross-encoder multilingue (identique au backend Java, chargé via FlagEmbedding).
+    # Cross-encoder multilingue (identique au backend Java), via sentence-transformers.
     RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
 
     @computed_field  # type: ignore[prop-decorator]
